@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ROL {
+  rol_id      Int       @id @db.SmallInt
+  nombre      String    @unique @db.VarChar(30)
+  descripcion String?   @db.VarChar(150)
+  usuarios    USUARIO[]
+
+  @@map("ROL")
+}
+
+model USUARIO {
+  usuario_id       String         @id @default(uuid()) @db.Uuid
+  rol_id           Int            @db.SmallInt
+  nombres          String         @db.VarChar(100)
+  apellidos        String         @db.VarChar(100)
+  correo           String         @unique @db.VarChar(150)
+  telefono         String?        @db.VarChar(20)
+  hash_contrasena  String         @db.VarChar(255)
+  estado_usuario   String         @db.VarChar(15)
+  fecha_registro   DateTime       @default(now()) @db.Timestamptz
+  rol              ROL            @relation(fields: [rol_id], references: [rol_id])
+  comercios        COMERCIO[]
+  reservas         RESERVA[]
+  retiros          RETIRO[]
+  favoritos        FAVORITO[]
+  refresh_tokens   REFRESH_TOKEN[]
+
+  @@map("USUARIO")
+}
+
+model COMERCIO {
+  comercio_id              String     @id @default(uuid()) @db.Uuid
+  usuario_propietario_id   String     @db.Uuid
+  ruc                      String     @unique @db.VarChar(13)
+  razon_social             String     @db.VarChar(160)
+  nombre_comercial         String     @db.VarChar(160)
+  correo_contacto          String     @db.VarChar(150)
+  estado_comercio          String     @db.VarChar(25)
+  fecha_registro           DateTime   @default(now()) @db.Timestamptz
+  propietario              USUARIO    @relation(fields: [usuario_propietario_id], references: [usuario_id])
+  sucursales               SUCURSAL[]
+  productos                PRODUCTO[]
+  favoritos                FAVORITO[]
+
+  @@map("COMERCIO")
+}
+
+model SUCURSAL {
+  sucursal_id  String          @id @default(uuid()) @db.Uuid
+  comercio_id  String          @db.Uuid
+  nombre       String          @db.VarChar(120)
+  direccion    String          @db.VarChar(255)
+  ciudad       String          @db.VarChar(80)
+  latitud      Decimal         @db.Decimal(9, 6)
+  longitud     Decimal         @db.Decimal(9, 6)
+  telefono     String?         @db.VarChar(20)
+  activo       Boolean         @default(true)
+  comercio     COMERCIO        @relation(fields: [comercio_id], references: [comercio_id])
+  ofertas      OFERTA_ALIMENTO[]
+  reservas     RESERVA[]
+
+  @@unique([comercio_id, nombre])
+  @@map("SUCURSAL")
+}
+
+model CATEGORIA {
+  categoria_id Int      @id @db.SmallInt
+  nombre       String   @unique @db.VarChar(80)
+  descripcion  String?  @db.VarChar(180)
+  activa       Boolean  @default(true)
+  productos    PRODUCTO[]
+
+  @@map("CATEGORIA")
+}
+
+model PRODUCTO {
+  producto_id           String           @id @default(uuid()) @db.Uuid
+  comercio_id           String           @db.Uuid
+  categoria_id          Int              @db.SmallInt
+  nombre                String           @db.VarChar(150)
+  descripcion           String?          @db.Text
+  informacion_alergenos String?          @db.VarChar(500)
+  imagen_url            String?          @db.VarChar(500)
+  activo                Boolean          @default(true)
+  comercio              COMERCIO         @relation(fields: [comercio_id], references: [comercio_id])
+  categoria             CATEGORIA        @relation(fields: [categoria_id], references: [categoria_id])
+  ofertas               OFERTA_ALIMENTO[]
+
+  @@map("PRODUCTO")
+}
+
+model OFERTA_ALIMENTO {
+  oferta_id         String    @id @default(uuid()) @db.Uuid
+  producto_id       String    @db.Uuid
+  sucursal_id       String    @db.Uuid
+  titulo_publico    String    @db.VarChar(160)
+  precio_original   Decimal   @db.Decimal(10, 2)
+  precio_oferta     Decimal   @db.Decimal(10, 2)
+  stock_inicial     Int
+  stock_disponible  Int
+  fecha_publicacion DateTime  @default(now()) @db.Timestamptz
+  fecha_vencimiento DateTime  @db.Timestamptz
+  inicio_retiro     DateTime  @db.Timestamptz
+  fin_retiro        DateTime  @db.Timestamptz
+  estado_oferta     String    @db.VarChar(15)
+  producto          PRODUCTO  @relation(fields: [producto_id], references: [producto_id])
+  sucursal          SUCURSAL  @relation(fields: [sucursal_id], references: [sucursal_id])
+  detalles          DETALLE_RESERVA[]
+
+  @@index([sucursal_id])
+  @@index([estado_oferta])
+  @@index([fecha_vencimiento])
+  @@map("OFERTA_ALIMENTO")
+}
+
+model RESERVA {
+  reserva_id          String           @id @default(uuid()) @db.Uuid
+  usuario_id          String           @db.Uuid
+  sucursal_id         String           @db.Uuid
+  codigo_retiro       String           @unique @db.VarChar(12)
+  subtotal            Decimal          @db.Decimal(10, 2)
+  total_pagar         Decimal          @db.Decimal(10, 2)
+  estado_reserva      String           @db.VarChar(20)
+  fecha_reserva       DateTime         @default(now()) @db.Timestamptz
+  fecha_limite_retiro DateTime         @db.Timestamptz
+  fecha_cancelacion   DateTime?        @db.Timestamptz
+  usuario             USUARIO          @relation(fields: [usuario_id], references: [usuario_id])
+  sucursal            SUCURSAL         @relation(fields: [sucursal_id], references: [sucursal_id])
+  detalles            DETALLE_RESERVA[]
+  pago                PAGO[]
+  retiro              RETIRO[]
+
+  @@map("RESERVA")
+}
+
+model DETALLE_RESERVA {
+  detalle_reserva_id String           @id @default(uuid()) @db.Uuid
+  reserva_id         String           @db.Uuid
+  oferta_id          String           @db.Uuid
+  cantidad           Int
+  precio_unitario    Decimal          @db.Decimal(10, 2)
+  subtotal_linea     Decimal          @db.Decimal(10, 2)
+  reserva            RESERVA          @relation(fields: [reserva_id], references: [reserva_id])
+  oferta             OFERTA_ALIMENTO  @relation(fields: [oferta_id], references: [oferta_id])
+
+  @@unique([reserva_id, oferta_id])
+  @@map("DETALLE_RESERVA")
+}
+
+model PAGO {
+  pago_id            String   @id @default(uuid()) @db.Uuid
+  reserva_id         String   @db.Uuid
+  proveedor_pago     String   @db.VarChar(80)
+  referencia_externa String?  @unique @db.VarChar(120)
+  metodo_pago        String   @db.VarChar(30)
+  monto              Decimal  @db.Decimal(10, 2)
+  moneda             String   @default("USD") @db.Char(3)
+  estado_pago        String   @db.VarChar(15)
+  fecha_proceso      DateTime @default(now()) @db.Timestamptz
+  reserva            RESERVA  @relation(fields: [reserva_id], references: [reserva_id])
+
+  @@map("PAGO")
+}
+
+model RETIRO {
+  retiro_id                String   @id @default(uuid()) @db.Uuid
+  reserva_id               String   @unique @db.Uuid
+  verificado_por_usuario_id String  @db.Uuid
+  metodo_validacion        String   @db.VarChar(20)
+  fecha_retiro             DateTime @default(now()) @db.Timestamptz
+  observacion              String?  @db.VarChar(300)
+  reserva                  RESERVA  @relation(fields: [reserva_id], references: [reserva_id])
+  verificado_por           USUARIO  @relation(fields: [verificado_por_usuario_id], references: [usuario_id])
+
+  @@map("RETIRO")
+}
+
+model FAVORITO {
+  usuario_id    String   @db.Uuid
+  comercio_id   String   @db.Uuid
+  fecha_creacion DateTime @default(now()) @db.Timestamptz
+  usuario       USUARIO  @relation(fields: [usuario_id], references: [usuario_id])
+  comercio      COMERCIO @relation(fields: [comercio_id], references: [comercio_id])
+
+  @@id([usuario_id, comercio_id])
+  @@map("FAVORITO")
+}
+
+model REFRESH_TOKEN {
+  id          String   @id @default(uuid()) @db.Uuid
+  usuario_id  String   @db.Uuid
+  token_hash  String   @db.VarChar(255)
+  revocado    Boolean  @default(false)
+  expira_en   DateTime @db.Timestamptz
+  creado_en   DateTime @default(now()) @db.Timestamptz
+  usuario     USUARIO  @relation(fields: [usuario_id], references: [usuario_id])
+
+  @@map("REFRESH_TOKEN")
+}
