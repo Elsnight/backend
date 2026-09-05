@@ -74,7 +74,22 @@ Roles: `CONSUMIDOR`, `COMERCIANTE`, `ADMINISTRADOR`
   "telefono": "string | null"
 }
 ```
-**Respuesta 201:** Usuario creado.
+**Respuesta 201:**
+```json
+{
+  "success": true,
+  "data": {
+    "usuario_id": "uuid",
+    "nombres": "string",
+    "apellidos": "string",
+    "correo": "string",
+    "telefono": null,
+    "rol_id": 1,
+    "estado_usuario": "ACTIVO",
+    "fecha_registro": "2026-09-05T..."
+  }
+}
+```
 
 #### POST /api/auth/login
 ```json
@@ -180,14 +195,29 @@ Parámetros query opcionales:
 |--------|------|------|-------------|
 | POST | `/api/reservas` | ✅ CONSUMIDOR | Crear una reserva |
 | GET | `/api/reservas/mias` | ✅ CONSUMIDOR | Listar reservas del usuario |
+| PATCH | `/api/reservas/:id/cancelar` | ✅ CONSUMIDOR | Cancelar una reserva (solo si está pendiente) |
 
 #### POST /api/reservas
 ```json
 {
-  "sucursal_id": "uuid",
-  "items": [
-    { "oferta_id": "uuid", "cantidad": 1 }
-  ]
+  "oferta_id": "uuid",
+  "cantidad": 1
+}
+```
+
+**Respuesta 201:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "usuarioId": "uuid",
+    "ofertaId": "uuid",
+    "cantidad": 1,
+    "codigoRetiro": "ABC12345",
+    "estado": "PENDIENTE_PAGO",
+    "createdAt": "2026-09-05T..."
+  }
 }
 ```
 
