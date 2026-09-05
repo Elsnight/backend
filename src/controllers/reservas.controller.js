@@ -97,7 +97,7 @@ async function crearReserva(req, res, next) {
         codigo_retiro: codigo,
         subtotal: Number(oferta.precio_oferta) * cantidad,
         total_pagar: total,
-        estado_reserva: "PENDIENTE_PAGO",
+        estado_reserva: "CONFIRMADA",
         fecha_limite_retiro: fechaLimite,
         detalles: {
           create: {
@@ -151,7 +151,7 @@ async function cancelarReserva(req, res, next) {
       return res.status(403).json(errorEnvelope("FORBIDDEN", "No eres el dueño de esta reserva"));
     }
 
-    if (!["PENDIENTE_PAGO"].includes(reserva.estado_reserva)) {
+    if (!["PENDIENTE", "CONFIRMADA"].includes(reserva.estado_reserva)) {
       return res.status(400).json(errorEnvelope("BAD_REQUEST", "Esta reserva no se puede cancelar"));
     }
 
