@@ -1,4 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -7,6 +8,7 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  // Roles
   const roles = [
     { rol_id: 1, nombre: "CONSUMIDOR", descripcion: "Usuario consumidor final" },
     { rol_id: 2, nombre: "COMERCIANTE", descripcion: "Dueño de comercio o administrador de sucursal" },
@@ -21,6 +23,7 @@ async function main() {
     });
   }
 
+  // Categorias
   const categorias = [
     { categoria_id: 1, nombre: "Panadería", descripcion: "Pan, pasteles, galletas y repostería" },
     { categoria_id: 2, nombre: "Comidas preparadas", descripcion: "Platos cocinados listos para consumo" },
@@ -37,7 +40,49 @@ async function main() {
     });
   }
 
-  console.log("Seed completed: roles and categories inserted.");
+  // Usuarios de prueba
+  const hash = await bcrypt.hash("123456", 10);
+
+  const usuarios = [
+    {
+      correo: "admin@rescatefresco.com",
+      nombres: "Admin",
+      apellidos: "Sistema",
+      rol_id: 3,
+      estado_usuario: "ACTIVO",
+      hash_contrasena: hash,
+    },
+    {
+      correo: "comerciante@test.com",
+      nombres: "Carlos",
+      apellidos: "Panadero",
+      rol_id: 2,
+      estado_usuario: "ACTIVO",
+      hash_contrasena: hash,
+    },
+    {
+      correo: "consumidor@test.com",
+      nombres: "Ana",
+      apellidos: "Compradora",
+      rol_id: 1,
+      estado_usuario: "ACTIVO",
+      hash_contrasena: hash,
+    },
+  ];
+
+  for (const u of usuarios) {
+    await prisma.uSUARIO.upsert({
+      where: { correo: u.correo },
+      update: {},
+      create: u,
+    });
+  }
+
+  console.log("Seed completado: roles, categorías y usuarios de prueba insertados.");
+  console.log("Usuarios de prueba (contraseña: 123456):");
+  console.log("  admin@rescatefresco.com     (ADMINISTRADOR)");
+  console.log("  comerciante@test.com        (COMERCIANTE)");
+  console.log("  consumidor@test.com         (CONSUMIDOR)");
 }
 
 main()

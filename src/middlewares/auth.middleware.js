@@ -1,19 +1,118 @@
-// TODO: Implementar verificación de JWT
+const { verifyAccessToken } = require("../utils/jwt");
+const prisma = require("../lib/prisma");
+const { errorEnvelope } = require("../utils/envelope");
+
 function authenticate(req, res, next) {
-  res.status(501).json({ success: false, error: { code: "NOT_IMPLEMENTED", message: "Middleware authenticate no implementado" } });
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .json(errorEnvelope("UNAUTHORIZED", "Token no proporcionado"));
+  }
+
+  const token = header.split(" ")[1];
+  try {
+    const decoded = verifyAccessToken(token);
+    req.usuario = decoded;
+    next();
+  } catch {
+    return res
+      .status(401)
+      .json(errorEnvelope("UNAUTHORIZED", "Token inválido o expirado"));
+  }
 }
 
-// TODO: Implementar autorización por rol (recibe string o array de roles)
 function authorize(...roles) {
   return (req, res, next) => {
-    res.status(501).json({ success: false, error: { code: "NOT_IMPLEMENTED", message: "Middleware authorize no implementado" } });
+    if (!req.usuario) {
+      return res
+        .status(401)
+        .json(errorEnvelope("UNAUTHORIZED", "No autenticado"));
+    }
+    if (!roles.includes(req.usuario.rol)) {
+      return res
+        .status(403)
+        .json(errorEnvelope("FORBIDDEN", "No tienes permiso para esta acción"));
+    }
+    next();
   };
 }
 
-// TODO: Verificar que el comerciante es dueño del recurso
 function isOwner(model) {
-  return (req, res, next) => {
-    res.status(501).json({ success: false, error: { code: "NOT_IMPLEMENTED", message: "Middleware isOwner no implementado" } });
+  return async (req, res, next) => {
+    if (!req.usuario) {
+      return res
+        .status(401)
+        .json(errorEnvelope("UNAUTHORIZED", "No autenticado"));
+    }
+
+    try {
+      let resource;
+      if (model === "OFERTA") {
+        resource = await prisma.oFERTA_ALIMENTO.findUnique({
+          where: { oferta_id: req.params.id },
+          include: { producto: { select: { comercio_id: true } } },
+        });
+        if (!resource) {
+          return res
+            .status(404)
+            .json(errorEnvelope("NOT_FOUND", "Oferta no encontrada"));
+        }
+        const comercio = await prisma.cOMERCIO.findUnique({
+          where: { comercio_id: resource.producto.comercio_id },
+        });
+        if (comercio.usuario_propietario_id !== req.usuario.usuario_id) {
+          return res
+            .status(403)
+            .json(
+              errorEnvelope("FORBIDDEN", "No eres el dueño de este recurso")
+            );
+        }
+      } else if (model === "COMERCIO") {
+        resource = await prisma.cOMERCIO.findUnique({
+          where: { comercio_id: req.params.id },
+        });
+        if (!resource) {
+          return res
+            .status(404)
+            .json(errorEnvelope("NOT_FOUND", "Comercio no encontrado"));
+        }
+        if (resource.usuario_propietario_id !== req.usuario.usuario_id) {
+          return res
+            .status(403)
+            .json(
+              errorEnvelope("FORBIDDEN", "No eres el dueño de este recurso")
+            );
+        }
+      } else if (model === "SUCURSAL") {
+        resource = await prisma.sUCURSAL.findUnique({
+          where: { sucursal_id: req.params.id },
+        });
+        if (!resource) {
+          return res
+            .status(404)
+            .json(errorEnvelope("NOT_FOUND", "Sucursal no encontrada"));
+        }
+        const comercio = await prisma.cOMERCIO.findUnique({
+          where: { comercio_id: resource.comercio_id },
+        });
+        if (comercio.usuario_propietario_id !== req.usuario.usuario_id) {
+          return res
+            .status(403)
+            .json(
+              errorEnvelope("FORBIDDEN", "No eres el dueño de este recurso")
+            );
+        }
+      } else {
+        return res
+          .status(500)
+          .json(errorEnvelope("INTERNAL_ERROR", "Modelo no soportado para isOwner"));
+      }
+
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }
 

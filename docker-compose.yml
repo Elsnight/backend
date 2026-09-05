@@ -4,7 +4,7 @@ services:
     container_name: rescatefresco-db
     environment:
       POSTGRES_USER: rescatefresco
-      POSTGRES_PASSWORD: rescatefresco123
+      POSTGRES_PASSWORD: rescatefresco
       POSTGRES_DB: rescatefresco
     ports:
       - "5432:5432"

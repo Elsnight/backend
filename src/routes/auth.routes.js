@@ -2,7 +2,7 @@ const router = require("express").Router();
 const authController = require("../controllers/auth.controller");
 const { authenticate } = require("../middlewares/auth.middleware");
 const { validate } = require("../middlewares/validate.middleware");
-const { registroSchema, loginSchema } = require("../schemas/auth.schema");
+const { registroSchema, loginSchema, refreshTokenSchema } = require("../schemas/auth.schema");
 
 /**
  * @openapi
@@ -74,7 +74,7 @@ router.post("/login", validate(loginSchema), authController.login);
  *       401:
  *         description: Refresh token inválido o expirado
  */
-router.post("/refresh", authController.refresh);
+router.post("/refresh", validate(refreshTokenSchema), authController.refresh);
 
 /**
  * @openapi
