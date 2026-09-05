@@ -54,4 +54,4 @@ async function validarRetiro(req, res, next) {
   }
 }
 
-module.exports = { validarRetiro };
+module.exports = { validarRetiro, confirmarRetiro };

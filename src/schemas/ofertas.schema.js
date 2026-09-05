@@ -1,30 +1,30 @@
 const { z } = require("zod");
 
 const crearOfertaSchema = z.object({
-  producto_id: z.string(),
-  sucursal_id: z.string(),
-  titulo_publico: z.string().min(3).max(160),
+  producto_id: z.string().uuid(),
+  sucursal_id: z.string().uuid(),
+  titulo_publico: z.string().min(1).max(160),
   precio_original: z.number().positive(),
   precio_oferta: z.number().positive(),
   stock_inicial: z.number().int().positive(),
-  stock_disponible: z.number().int().positive(),
-  fecha_vencimiento: z.string().datetime({ offset: true }),
-  inicio_retiro: z.string().datetime({ offset: true }),
-  fin_retiro: z.string().datetime({ offset: true }),
+  stock_disponible: z.number().int().min(0),
+  fecha_vencimiento: z.string().datetime(),
+  inicio_retiro: z.string().datetime(),
+  fin_retiro: z.string().datetime(),
 });
 
 const actualizarOfertaSchema = z.object({
-  titulo_publico: z.string().min(3).max(160).optional(),
+  titulo_publico: z.string().min(1).max(160).optional(),
   precio_original: z.number().positive().optional(),
   precio_oferta: z.number().positive().optional(),
-  stock_disponible: z.number().int().positive().optional(),
-  fecha_vencimiento: z.string().datetime({ offset: true }).optional(),
-  inicio_retiro: z.string().datetime({ offset: true }).optional(),
-  fin_retiro: z.string().datetime({ offset: true }).optional(),
+  stock_disponible: z.number().int().min(0).optional(),
+  fecha_vencimiento: z.string().datetime().optional(),
+  inicio_retiro: z.string().datetime().optional(),
+  fin_retiro: z.string().datetime().optional(),
 });
 
 const cambiarEstadoSchema = z.object({
-  estado_oferta: z.enum(["DISPONIBLE", "PAUSADA", "AGOTADA", "EXPIRADA"]),
+  estado_oferta: z.enum(["DISPONIBLE", "AGOTADA", "PAUSADA", "EXPIRADA"]),
 });
 
 module.exports = { crearOfertaSchema, actualizarOfertaSchema, cambiarEstadoSchema };
