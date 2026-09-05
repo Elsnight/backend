@@ -1,6 +1,7 @@
-const prisma = require("../lib/prisma");
-const crypto = require("crypto");
+const { PrismaClient } = require("@prisma/client");
 const { successEnvelope, errorEnvelope } = require("../utils/envelope");
+
+const prisma = new PrismaClient();
 
 function generarCodigoRetiro() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
