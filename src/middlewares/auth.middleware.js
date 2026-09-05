@@ -1,6 +1,9 @@
-const { verifyAccessToken } = require("../utils/jwt");
-const prisma = require("../lib/prisma");
+const jwt = require("jsonwebtoken");
+const { PrismaClient } = require("@prisma/client");
 const { errorEnvelope } = require("../utils/envelope");
+
+const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_ACCESS_SECRET || "dev-secreto-access-123";
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization;
@@ -12,7 +15,7 @@ function authenticate(req, res, next) {
 
   const token = header.split(" ")[1];
   try {
-    const decoded = verifyAccessToken(token);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.usuario = decoded;
     next();
   } catch {

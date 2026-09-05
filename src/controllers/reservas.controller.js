@@ -46,13 +46,20 @@ const reservaSelect = {
 
 function mapReserva(r) {
   const detalle = r.detalles?.[0];
+  const estadoMap = {
+    PENDIENTE_PAGO: 'PENDIENTE',
+    LISTA_RETIRO: 'CONFIRMADA',
+    RETIRADA: 'RETIRADA',
+    CANCELADA: 'CANCELADA',
+    EXPIRADA: 'VENCIDA',
+  };
   return {
     id: r.reserva_id,
     usuarioId: r.usuario_id,
     ofertaId: detalle?.oferta?.oferta_id ?? "",
     cantidad: detalle?.cantidad ?? 0,
     codigoRetiro: r.codigo_retiro,
-    estado: r.estado_reserva,
+    estado: estadoMap[r.estado_reserva] ?? r.estado_reserva,
     createdAt: r.fecha_reserva,
     oferta: {
       id: detalle?.oferta?.oferta_id ?? "",
@@ -98,7 +105,7 @@ async function crearReserva(req, res, next) {
         codigo_retiro: codigo,
         subtotal: Number(oferta.precio_oferta) * cantidad,
         total_pagar: total,
-        estado_reserva: "CONFIRMADA",
+        estado_reserva: "LISTA_RETIRO",
         fecha_limite_retiro: fechaLimite,
         detalles: {
           create: {
@@ -152,7 +159,7 @@ async function cancelarReserva(req, res, next) {
       return res.status(403).json(errorEnvelope("FORBIDDEN", "No eres el dueño de esta reserva"));
     }
 
-    if (!["PENDIENTE", "CONFIRMADA"].includes(reserva.estado_reserva)) {
+    if (!["PENDIENTE_PAGO", "LISTA_RETIRO"].includes(reserva.estado_reserva)) {
       return res.status(400).json(errorEnvelope("BAD_REQUEST", "Esta reserva no se puede cancelar"));
     }
 

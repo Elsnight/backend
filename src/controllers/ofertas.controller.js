@@ -1,4 +1,5 @@
-const prisma = require("../lib/prisma");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 const { successEnvelope, errorEnvelope } = require("../utils/envelope");
 
 async function listarOfertas(req, res, next) {
