@@ -1,8 +1,8 @@
 const { z } = require("zod");
 
 const crearOfertaSchema = z.object({
-  producto_id: z.string().uuid(),
-  sucursal_id: z.string().uuid(),
+  producto_id: z.string(),
+  sucursal_id: z.string(),
   titulo_publico: z.string().min(3).max(160),
   precio_original: z.number().positive(),
   precio_oferta: z.number().positive(),

@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../lib/prisma");
+const crypto = require("crypto");
 const { successEnvelope, errorEnvelope } = require("../utils/envelope");
-
-const prisma = new PrismaClient();
 
 function generarCodigoRetiro() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -98,7 +97,7 @@ async function crearReserva(req, res, next) {
         codigo_retiro: codigo,
         subtotal: Number(oferta.precio_oferta) * cantidad,
         total_pagar: total,
-        estado_reserva: "CONFIRMADA",
+        estado_reserva: "PENDIENTE_PAGO",
         fecha_limite_retiro: fechaLimite,
         detalles: {
           create: {
@@ -152,7 +151,7 @@ async function cancelarReserva(req, res, next) {
       return res.status(403).json(errorEnvelope("FORBIDDEN", "No eres el dueño de esta reserva"));
     }
 
-    if (!["PENDIENTE", "CONFIRMADA"].includes(reserva.estado_reserva)) {
+    if (!["PENDIENTE_PAGO"].includes(reserva.estado_reserva)) {
       return res.status(400).json(errorEnvelope("BAD_REQUEST", "Esta reserva no se puede cancelar"));
     }
 
