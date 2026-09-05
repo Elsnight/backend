@@ -8,7 +8,6 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-  // Roles
   const roles = [
     { rol_id: 1, nombre: "CONSUMIDOR", descripcion: "Usuario consumidor final" },
     { rol_id: 2, nombre: "COMERCIANTE", descripcion: "Dueño de comercio o administrador de sucursal" },
@@ -23,7 +22,6 @@ async function main() {
     });
   }
 
-  // Categorias
   const categorias = [
     { categoria_id: 1, nombre: "Panadería", descripcion: "Pan, pasteles, galletas y repostería" },
     { categoria_id: 2, nombre: "Comidas preparadas", descripcion: "Platos cocinados listos para consumo" },
@@ -40,49 +38,145 @@ async function main() {
     });
   }
 
-  // Usuarios de prueba
+  console.log("Roles y categorías insertados.");
+
   const hash = await bcrypt.hash("123456", 10);
 
-  const usuarios = [
-    {
-      correo: "admin@rescatefresco.com",
-      nombres: "Admin",
-      apellidos: "Sistema",
-      rol_id: 3,
-      estado_usuario: "ACTIVO",
-      hash_contrasena: hash,
-    },
-    {
-      correo: "comerciante@test.com",
-      nombres: "Carlos",
-      apellidos: "Panadero",
-      rol_id: 2,
-      estado_usuario: "ACTIVO",
-      hash_contrasena: hash,
-    },
-    {
-      correo: "consumidor@test.com",
-      nombres: "Ana",
-      apellidos: "Compradora",
+  const usuarioConsumidor = await prisma.uSUARIO.upsert({
+    where: { correo: "consumer@test.com" },
+    update: {},
+    create: {
       rol_id: 1,
-      estado_usuario: "ACTIVO",
+      nombres: "María",
+      apellidos: "González",
+      correo: "consumer@test.com",
       hash_contrasena: hash,
+      estado_usuario: "ACTIVO",
     },
-  ];
+  });
 
-  for (const u of usuarios) {
-    await prisma.uSUARIO.upsert({
-      where: { correo: u.correo },
-      update: {},
-      create: u,
-    });
-  }
+  const usuarioComerciante = await prisma.uSUARIO.upsert({
+    where: { correo: "comercio@test.com" },
+    update: {},
+    create: {
+      rol_id: 2,
+      nombres: "Carlos",
+      apellidos: "López",
+      correo: "comercio@test.com",
+      hash_contrasena: hash,
+      estado_usuario: "ACTIVO",
+    },
+  });
 
-  console.log("Seed completado: roles, categorías y usuarios de prueba insertados.");
-  console.log("Usuarios de prueba (contraseña: 123456):");
-  console.log("  admin@rescatefresco.com     (ADMINISTRADOR)");
-  console.log("  comerciante@test.com        (COMERCIANTE)");
-  console.log("  consumidor@test.com         (CONSUMIDOR)");
+  console.log("Usuarios de prueba creados.");
+  console.log("  Consumidor: consumer@test.com / 123456");
+  console.log("  Comerciante: comercio@test.com / 123456");
+
+  const comercio = await prisma.cOMERCIO.upsert({
+    where: { ruc: "1790012345001" },
+    update: {},
+    create: {
+      usuario_propietario_id: usuarioComerciante.usuario_id,
+      ruc: "1790012345001",
+      razon_social: "Panadería El Pan Fresco S.A.",
+      nombre_comercial: "Panadería El Pan Fresco",
+      correo_contacto: "info@panfresco.com",
+      estado_comercio: "ACTIVO",
+    },
+  });
+
+  const sucursal = await prisma.sUCURSAL.upsert({
+    where: { comercio_id_nombre: { comercio_id: comercio.comercio_id, nombre: "Centro" } },
+    update: {},
+    create: {
+      comercio_id: comercio.comercio_id,
+      nombre: "Centro",
+      direccion: "Av. Amazonas y Naciones Unidas",
+      ciudad: "Quito",
+      latitud: -0.1807,
+      longitud: -78.4678,
+      telefono: "022345678",
+    },
+  });
+
+  console.log("Comercio y sucursal creados.");
+
+  const producto = await prisma.pRODUCTO.upsert({
+    where: { producto_id: "00000000-0000-0000-0000-000000000001" },
+    update: {},
+    create: {
+      producto_id: "00000000-0000-0000-0000-000000000001",
+      comercio_id: comercio.comercio_id,
+      categoria_id: 1,
+      nombre: "Pan de yema artesanal",
+      descripcion: "Pan de yema horneado esta mañana, receta tradicional con masa madre.",
+      informacion_alergenos: "Contiene gluten, huevo, lácteos.",
+      activo: true,
+    },
+  });
+
+  const hoy = new Date();
+  const manana = new Date(hoy);
+  manana.setDate(manana.getDate() + 1);
+
+  const oferta1 = await prisma.oFERTA_ALIMENTO.upsert({
+    where: { oferta_id: "00000000-0000-0000-0000-000000000001" },
+    update: {},
+    create: {
+      oferta_id: "00000000-0000-0000-0000-000000000001",
+      producto_id: producto.producto_id,
+      sucursal_id: sucursal.sucursal_id,
+      titulo_publico: "Pan de yema artesanal - 6 unidades",
+      precio_original: 5.0,
+      precio_oferta: 2.5,
+      stock_inicial: 10,
+      stock_disponible: 10,
+      fecha_vencimiento: manana,
+      inicio_retiro: hoy,
+      fin_retiro: new Date(hoy.getTime() + 6 * 60 * 60 * 1000),
+      estado_oferta: "DISPONIBLE",
+    },
+  });
+
+  const oferta2 = await prisma.oFERTA_ALIMENTO.upsert({
+    where: { oferta_id: "00000000-0000-0000-0000-000000000002" },
+    update: {},
+    create: {
+      oferta_id: "00000000-0000-0000-0000-000000000002",
+      producto_id: producto.producto_id,
+      sucursal_id: sucursal.sucursal_id,
+      titulo_publico: "Croissants de mantequilla - 4 unidades",
+      precio_original: 6.0,
+      precio_oferta: 3.0,
+      stock_inicial: 8,
+      stock_disponible: 8,
+      fecha_vencimiento: manana,
+      inicio_retiro: hoy,
+      fin_retiro: new Date(hoy.getTime() + 6 * 60 * 60 * 1000),
+      estado_oferta: "DISPONIBLE",
+    },
+  });
+
+  const oferta3 = await prisma.oFERTA_ALIMENTO.upsert({
+    where: { oferta_id: "00000000-0000-0000-0000-000000000003" },
+    update: {},
+    create: {
+      oferta_id: "00000000-0000-0000-0000-000000000003",
+      producto_id: producto.producto_id,
+      sucursal_id: sucursal.sucursal_id,
+      titulo_publico: "Pastel de chocolate artesanal",
+      precio_original: 12.0,
+      precio_oferta: 5.0,
+      stock_inicial: 3,
+      stock_disponible: 3,
+      fecha_vencimiento: manana,
+      inicio_retiro: hoy,
+      fin_retiro: new Date(hoy.getTime() + 4 * 60 * 60 * 1000),
+      estado_oferta: "DISPONIBLE",
+    },
+  });
+
+  console.log("Ofertas de prueba creadas.");
 }
 
 main()
