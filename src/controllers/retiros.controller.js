@@ -27,7 +27,7 @@ async function validarRetiro(req, res, next) {
       return res.status(403).json(errorEnvelope("FORBIDDEN", "No eres el dueño de este comercio"));
     }
 
-    if (reserva.estado_reserva !== "CONFIRMADA") {
+    if (reserva.estado_reserva !== "LISTA_RETIRO") {
       return res.status(400).json(
         errorEnvelope("BAD_REQUEST", `La reserva está en estado: ${reserva.estado_reserva}`),
       );
@@ -75,7 +75,7 @@ async function confirmarRetiro(req, res, next) {
       return res.status(404).json(errorEnvelope("NOT_FOUND", "Código de retiro inválido"));
     }
 
-    if (reserva.estado_reserva !== "CONFIRMADA") {
+    if (reserva.estado_reserva !== "LISTA_RETIRO") {
       return res.status(400).json(
         errorEnvelope("BAD_REQUEST", `La reserva está en estado: ${reserva.estado_reserva}`),
       );
