@@ -4,7 +4,7 @@ const { successEnvelope, errorEnvelope } = require("../utils/envelope");
 
 async function listarOfertas(req, res, next) {
   try {
-    const { categoria_id, ciudad, precio_max } = req.query;
+    const { categoria_id, ciudad, precio_max, actualizado_desde } = req.query;
     const where = { estado_oferta: "DISPONIBLE" };
 
     if (categoria_id) {
@@ -15,6 +15,9 @@ async function listarOfertas(req, res, next) {
     }
     if (precio_max) {
       where.precio_oferta = { lte: parseFloat(precio_max) };
+    }
+    if (actualizado_desde) {
+      where.updated_at = { gt: new Date(actualizado_desde) };
     }
 
     const ofertas = await prisma.oFERTA_ALIMENTO.findMany({
@@ -45,6 +48,7 @@ async function listarOfertas(req, res, next) {
         longitud: Number(o.sucursal.longitud),
       },
       createdAt: o.fecha_publicacion.toISOString(),
+      updatedAt: o.updated_at.toISOString(),
     }));
 
     res.json(successEnvelope({ data, total: data.length, page: 1, limit: 50 }));
@@ -87,6 +91,7 @@ async function obtenerOferta(req, res, next) {
           longitud: Number(oferta.sucursal.longitud),
         },
         createdAt: oferta.fecha_publicacion.toISOString(),
+        updatedAt: oferta.updated_at.toISOString(),
       })
     );
   } catch (err) {
@@ -173,6 +178,7 @@ async function misOfertas(req, res, next) {
         longitud: Number(o.sucursal.longitud),
       },
       createdAt: o.fecha_publicacion.toISOString(),
+      updatedAt: o.updated_at.toISOString(),
     }));
 
     res.json(successEnvelope(data));
