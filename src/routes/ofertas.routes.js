@@ -20,6 +20,10 @@ const { crearOfertaSchema, actualizarOfertaSchema, cambiarEstadoSchema } = requi
  *       - in: query
  *         name: precio_max
  *         schema: { type: number }
+ *       - in: query
+ *         name: actualizado_desde
+ *         schema: { type: string, format: date-time }
+ *         description: Fecha ISO 8601 — filtra ofertas con updated_at posterior (sincronización incremental)
  *     responses:
  *       200:
  *         description: Lista de ofertas
