@@ -111,6 +111,7 @@ model OFERTA_ALIMENTO {
   inicio_retiro     DateTime  @db.Timestamptz
   fin_retiro        DateTime  @db.Timestamptz
   estado_oferta     String    @db.VarChar(15)
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz
   producto          PRODUCTO  @relation(fields: [producto_id], references: [producto_id])
   sucursal          SUCURSAL  @relation(fields: [sucursal_id], references: [sucursal_id])
   detalles          DETALLE_RESERVA[]
@@ -132,6 +133,7 @@ model RESERVA {
   fecha_reserva       DateTime         @default(now()) @db.Timestamptz
   fecha_limite_retiro DateTime         @db.Timestamptz
   fecha_cancelacion   DateTime?        @db.Timestamptz
+  updated_at          DateTime         @default(now()) @updatedAt @db.Timestamptz
   usuario             USUARIO          @relation(fields: [usuario_id], references: [usuario_id])
   sucursal            SUCURSAL         @relation(fields: [sucursal_id], references: [sucursal_id])
   detalles            DETALLE_RESERVA[]
@@ -187,6 +189,7 @@ model FAVORITO {
   usuario_id    String   @db.Uuid
   comercio_id   String   @db.Uuid
   fecha_creacion DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
   usuario       USUARIO  @relation(fields: [usuario_id], references: [usuario_id])
   comercio      COMERCIO @relation(fields: [comercio_id], references: [comercio_id])
 

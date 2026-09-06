@@ -77,7 +77,7 @@ function mapReserva(r) {
 
 async function crearReserva(req, res, next) {
   try {
-    const { oferta_id, cantidad } = req.body;
+    const { oferta_id, cantidad, base_updated_at } = req.body;
 
     const oferta = await prisma.oFERTA_ALIMENTO.findUnique({
       where: { oferta_id },
@@ -86,6 +86,20 @@ async function crearReserva(req, res, next) {
 
     if (!oferta) {
       return res.status(404).json(errorEnvelope("NOT_FOUND", "Oferta no encontrada"));
+    }
+
+    // Detección de conflicto: el cliente generó la operación con datos desactualizados
+    if (base_updated_at && new Date(base_updated_at) < oferta.updated_at) {
+      return res.status(409).json(
+        errorEnvelope("CONFLICTO_SINCRONIZACION", "La oferta fue modificada mientras estabas offline", {
+          recurso: {
+            oferta_id: oferta.oferta_id,
+            stock_disponible: oferta.stock_disponible,
+            estado_oferta: oferta.estado_oferta,
+            updated_at: oferta.updated_at.toISOString(),
+          },
+        })
+      );
     }
 
     if (oferta.estado_oferta !== "DISPONIBLE" || oferta.stock_disponible < cantidad) {
@@ -98,34 +112,55 @@ async function crearReserva(req, res, next) {
     const fechaLimite = new Date(oferta.fin_retiro);
     const total = Number(oferta.precio_oferta) * cantidad;
 
-    const reserva = await prisma.rESERVA.create({
-      data: {
-        usuario_id: req.usuario.usuario_id,
-        sucursal_id: oferta.sucursal_id,
-        codigo_retiro: codigo,
-        subtotal: Number(oferta.precio_oferta) * cantidad,
-        total_pagar: total,
-        estado_reserva: "LISTA_RETIRO",
-        fecha_limite_retiro: fechaLimite,
-        detalles: {
-          create: {
-            oferta_id,
-            cantidad,
-            precio_unitario: Number(oferta.precio_oferta),
-            subtotal_linea: total,
+    const reserva = await prisma.$transaction(async (tx) => {
+      // Re-leer oferta dentro de la transacción para valor actual
+      const ofertaActual = await tx.oFERTA_ALIMENTO.findUnique({
+        where: { oferta_id },
+      });
+
+      if (!ofertaActual || ofertaActual.stock_disponible < cantidad) {
+        throw new Error("STOCK_INSUFICIENTE");
+      }
+
+      const nuevaReserva = await tx.rESERVA.create({
+        data: {
+          usuario_id: req.usuario.usuario_id,
+          sucursal_id: oferta.sucursal_id,
+          codigo_retiro: codigo,
+          subtotal: Number(oferta.precio_oferta) * cantidad,
+          total_pagar: total,
+          estado_reserva: "LISTA_RETIRO",
+          fecha_limite_retiro: fechaLimite,
+          detalles: {
+            create: {
+              oferta_id,
+              cantidad,
+              precio_unitario: Number(oferta.precio_oferta),
+              subtotal_linea: total,
+            },
           },
         },
-      },
-      select: reservaSelect,
-    });
+        select: reservaSelect,
+      });
 
-    await prisma.oFERTA_ALIMENTO.update({
-      where: { oferta_id },
-      data: { stock_disponible: { decrement: cantidad } },
+      await tx.oFERTA_ALIMENTO.update({
+        where: { oferta_id },
+        data: { stock_disponible: { decrement: cantidad } },
+      });
+
+      return nuevaReserva;
     });
 
     res.status(201).json(successEnvelope(mapReserva(reserva)));
   } catch (err) {
+    if (err.message === "STOCK_INSUFICIENTE") {
+      return res.status(409).json(
+        errorEnvelope("STOCK_INSUFICIENTE", "Ya no hay suficiente stock disponible al sincronizar la reserva", {
+          oferta_id,
+          cantidad_solicitada: cantidad,
+        })
+      );
+    }
     next(err);
   }
 }
