@@ -194,6 +194,19 @@ model FAVORITO {
   @@map("FAVORITO")
 }
 
+model IdempotencyRecord {
+  id                 Int      @id @default(autoincrement())
+  idempotency_key    String   @db.VarChar(255)
+  endpoint           String   @db.VarChar(255)
+  usuario_id         String   @db.Uuid
+  respuesta_guardada Json
+  codigo_estado      Int
+  creado_en          DateTime @default(now()) @db.Timestamptz
+
+  @@unique([idempotency_key, endpoint, usuario_id])
+  @@map("IDEMPOTENCY_RECORD")
+}
+
 model REFRESH_TOKEN {
   id          String   @id @default(uuid()) @db.Uuid
   usuario_id  String   @db.Uuid

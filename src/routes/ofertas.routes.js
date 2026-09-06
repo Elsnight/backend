@@ -143,3 +143,10 @@ router.patch("/:id/estado", authenticate, authorize("COMERCIANTE"), isOwner("OFE
 router.delete("/:id", authenticate, authorize("COMERCIANTE"), isOwner("OFERTA"), ofertasController.eliminarOferta);
 
 module.exports = router;
+
+/**
+ * ENDPOINTS PENDIENTES DE ADOPTAR IDEMPOTENCIA (modo offline futuro):
+ * - POST /api/ofertas  (crear oferta desde offline)
+ * - PUT /api/ofertas/:id  (actualizar oferta desde offline)
+ * - PATCH /api/ofertas/:id/estado  (cambiar estado desde offline)
+ */
