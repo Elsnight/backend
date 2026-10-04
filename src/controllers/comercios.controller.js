@@ -70,4 +70,36 @@ async function crearSucursal(req, res, next) {
   }
 }
 
-module.exports = { crearComercio, crearSucursal };
+async function misComercios(req, res, next) {
+  try {
+    const comercios = await prisma.cOMERCIO.findMany({
+      where: { usuario_propietario_id: req.usuario.usuario_id },
+      select: {
+        comercio_id: true,
+        ruc: true,
+        razon_social: true,
+        nombre_comercial: true,
+        correo_contacto: true,
+        estado_comercio: true,
+        sucursales: {
+          where: { activo: true },
+          select: {
+            sucursal_id: true,
+            nombre: true,
+            direccion: true,
+            ciudad: true,
+            latitud: true,
+            longitud: true,
+            telefono: true,
+          },
+        },
+      },
+      orderBy: { fecha_registro: "desc" },
+    });
+    res.json(successEnvelope(comercios));
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { crearComercio, crearSucursal, misComercios };

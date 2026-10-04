@@ -13,6 +13,8 @@ const reservasRoutes = require("./routes/reservas.routes");
 const retirosRoutes = require("./routes/retiros.routes");
 const adminRoutes = require("./routes/admin.routes");
 const favoritosRoutes = require("./routes/favoritos.routes");
+const productosRoutes = require("./routes/productos.routes");
+const categoriasRoutes = require("./routes/categorias.routes");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +38,8 @@ app.use("/api/reservas", reservasRoutes);
 app.use("/api/retiros", retirosRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/favoritos", favoritosRoutes);
+app.use("/api/productos", productosRoutes);
+app.use("/api/categorias", categoriasRoutes);
 
 app.use(errorHandler);
 

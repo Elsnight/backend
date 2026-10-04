@@ -1,8 +1,22 @@
 const router = require("express").Router();
 const comerciosController = require("../controllers/comercios.controller");
-const { authenticate } = require("../middlewares/auth.middleware");
+const { authenticate, authorize } = require("../middlewares/auth.middleware");
 const { validate } = require("../middlewares/validate.middleware");
 const { crearComercioSchema, crearSucursalSchema } = require("../schemas/comercios.schema");
+
+/**
+ * @openapi
+ * /api/comercios/mios:
+ *   get:
+ *     tags: [Comercios]
+ *     summary: Listar comercios propios y sus sucursales activas
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Comercios del usuario autenticado }
+ *       401: { description: Token ausente o inválido }
+ *       403: { description: Requiere rol COMERCIANTE }
+ */
+router.get("/mios", authenticate, authorize("COMERCIANTE"), comerciosController.misComercios);
 
 /**
  * @openapi

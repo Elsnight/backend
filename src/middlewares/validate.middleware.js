@@ -14,4 +14,17 @@ function validate(schema) {
   };
 }
 
-module.exports = { validate };
+function validateQuery(schema) {
+  return (req, res, next) => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      return res
+        .status(400)
+        .json(errorEnvelope("VALIDATION_ERROR", "Parámetros de consulta inválidos", result.error.flatten().fieldErrors));
+    }
+    req.validatedQuery = result.data;
+    next();
+  };
+}
+
+module.exports = { validate, validateQuery };

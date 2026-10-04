@@ -1,5 +1,54 @@
 const { z } = require("zod");
 
+const enteroPositivo = z.coerce.number().int().positive();
+const numeroPositivo = z.coerce.number().positive();
+const estadosOferta = ["DISPONIBLE", "AGOTADA", "PAUSADA", "EXPIRADA"];
+
+const listarOfertasQuerySchema = z
+  .object({
+    pagina: enteroPositivo.max(100000).optional(),
+    limite: enteroPositivo.max(50).optional(),
+    page: enteroPositivo.max(100000).optional(),
+    limit: enteroPositivo.max(50).optional(),
+    categoria_id: z.coerce.number().int().positive().optional(),
+    sucursal_id: z.string().uuid().optional(),
+    ciudad: z.string().trim().min(1).max(80).optional(),
+    precio_max: numeroPositivo.optional(),
+    actualizado_desde: z.coerce.date().optional(),
+    estado: z.enum(estadosOferta).optional(),
+    latitud: z.coerce.number().min(-90).max(90).optional(),
+    longitud: z.coerce.number().min(-180).max(180).optional(),
+    radio: numeroPositivo.max(50).default(5),
+  })
+  .superRefine((data, ctx) => {
+    if ((data.latitud === undefined) !== (data.longitud === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: data.latitud === undefined ? ["latitud"] : ["longitud"],
+        message: "latitud y longitud deben enviarse juntas",
+      });
+    }
+  })
+  .transform((data) => ({
+    ...data,
+    pagina: data.pagina ?? data.page ?? 1,
+    limite: data.limite ?? data.limit ?? 20,
+  }));
+
+const misOfertasQuerySchema = z
+  .object({
+    pagina: enteroPositivo.max(100000).optional(),
+    limite: enteroPositivo.max(50).optional(),
+    page: enteroPositivo.max(100000).optional(),
+    limit: enteroPositivo.max(50).optional(),
+    estado: z.enum(estadosOferta).optional(),
+  })
+  .transform((data) => ({
+    ...data,
+    pagina: data.pagina ?? data.page ?? 1,
+    limite: data.limite ?? data.limit ?? 20,
+  }));
+
 const crearOfertaSchema = z.object({
   producto_id: z.string(),
   sucursal_id: z.string(),
@@ -27,4 +76,10 @@ const cambiarEstadoSchema = z.object({
   estado_oferta: z.enum(["DISPONIBLE", "PAUSADA", "AGOTADA", "EXPIRADA"]),
 });
 
-module.exports = { crearOfertaSchema, actualizarOfertaSchema, cambiarEstadoSchema };
+module.exports = {
+  listarOfertasQuerySchema,
+  misOfertasQuerySchema,
+  crearOfertaSchema,
+  actualizarOfertaSchema,
+  cambiarEstadoSchema,
+};
