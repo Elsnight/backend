@@ -40,11 +40,11 @@ async function main() {
 
   console.log("Roles y categorías insertados.");
 
-  const hash = await bcrypt.hash("123456", 10);
+  const hash = await bcrypt.hash("Demo1234", 12);
 
   const usuarioConsumidor = await prisma.uSUARIO.upsert({
     where: { correo: "consumer@test.com" },
-    update: {},
+    update: { hash_contrasena: hash },
     create: {
       rol_id: 1,
       nombres: "María",
@@ -57,7 +57,7 @@ async function main() {
 
   const usuarioComerciante = await prisma.uSUARIO.upsert({
     where: { correo: "comercio@test.com" },
-    update: {},
+    update: { hash_contrasena: hash },
     create: {
       rol_id: 2,
       nombres: "Carlos",
@@ -68,9 +68,23 @@ async function main() {
     },
   });
 
+  await prisma.uSUARIO.upsert({
+    where: { correo: "admin@test.com" },
+    update: { hash_contrasena: hash, rol_id: 3, estado_usuario: "ACTIVO" },
+    create: {
+      rol_id: 3,
+      nombres: "Administrador",
+      apellidos: "RescateFresco",
+      correo: "admin@test.com",
+      hash_contrasena: hash,
+      estado_usuario: "ACTIVO",
+    },
+  });
+
   console.log("Usuarios de prueba creados.");
-  console.log("  Consumidor: consumer@test.com / 123456");
-  console.log("  Comerciante: comercio@test.com / 123456");
+  console.log("  Consumidor: consumer@test.com / Demo1234");
+  console.log("  Comerciante: comercio@test.com / Demo1234");
+  console.log("  Administrador: admin@test.com / Demo1234");
 
   const comercio = await prisma.cOMERCIO.upsert({
     where: { ruc: "1790012345001" },

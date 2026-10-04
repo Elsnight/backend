@@ -6,17 +6,30 @@ const { successEnvelope, errorEnvelope } = require("../utils/envelope");
 
 async function registro(req, res, next) {
   try {
-    const { nombres, apellidos, correo, contrasena, rol_id, telefono } = req.body;
+    const { nombres, apellidos, correo, contrasena, rol_nombre, telefono } = req.body;
     const existente = await prisma.uSUARIO.findUnique({ where: { correo } });
     if (existente) return res.status(409).json(errorEnvelope("CONFLICT", "El correo ya está registrado"));
-    const rol = await prisma.rOL.findUnique({ where: { rol_id } });
-    if (!rol) return res.status(400).json(errorEnvelope("VALIDATION_ERROR", "El rol_id no es válido"));
-    const hash = await bcrypt.hash(contrasena, 10);
+    const rol = await prisma.rOL.findUnique({ where: { nombre: rol_nombre } });
+    if (!rol || !["CONSUMIDOR", "COMERCIANTE"].includes(rol.nombre)) {
+      return res.status(400).json(errorEnvelope("VALIDATION_ERROR", "El rol no es válido"));
+    }
+    const hash = await bcrypt.hash(contrasena, 12);
     const usuario = await prisma.uSUARIO.create({
-      data: { nombres, apellidos, correo, hash_contrasena: hash, rol_id, telefono: telefono || null, estado_usuario: "ACTIVO" },
-      select: { usuario_id: true, nombres: true, apellidos: true, correo: true, telefono: true, rol_id: true, estado_usuario: true, fecha_registro: true },
+      data: { nombres, apellidos, correo, hash_contrasena: hash, rol_id: rol.rol_id, telefono: telefono || null, estado_usuario: "ACTIVO" },
+      select: { usuario_id: true, nombres: true, apellidos: true, correo: true },
     });
-    return res.status(201).json(successEnvelope(usuario));
+    const payload = { usuario_id: usuario.usuario_id, correo: usuario.correo, rol: rol.nombre };
+    const accessToken = signAccessToken(payload);
+    const refreshToken = signRefreshToken(payload);
+    const token_hash = crypto.createHash("sha256").update(refreshToken).digest("hex");
+    await prisma.rEFRESH_TOKEN.create({
+      data: { usuario_id: usuario.usuario_id, token_hash, expira_en: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+    });
+    return res.status(201).json(successEnvelope({
+      accessToken,
+      refreshToken,
+      usuario: { ...usuario, rol: rol.nombre },
+    }));
   } catch (err) { next(err); }
 }
 
