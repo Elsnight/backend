@@ -119,6 +119,7 @@ model OFERTA_ALIMENTO {
 
   @@index([sucursal_id])
   @@index([estado_oferta])
+  @@index([estado_oferta, fecha_publicacion(sort: Desc)])
   @@index([fecha_vencimiento])
   @@map("OFERTA_ALIMENTO")
 }

@@ -1,0 +1,317 @@
+{
+  "info": {
+    "_postman_id": "16748741-0e19-4f50-a152-9ee43c10b8b7",
+    "name": "RescateFresco API",
+    "description": "Pruebas E2E locales. Los pagos son simulados y no contactan una pasarela real.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.environment.get('testMerchantEmail')) pm.environment.set('testMerchantEmail', `newman-${Date.now()}@test.com`);",
+          "const now = Date.now();",
+          "pm.environment.set('inicioRetiro', new Date(now + 3600000).toISOString());",
+          "pm.environment.set('finRetiro', new Date(now + 7200000).toISOString());",
+          "pm.environment.set('fechaVencimiento', new Date(now + 10800000).toISOString());"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Registro 201",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"nombres\":\"Comerciante Newman\",\"apellidos\":\"\",\"correo\":\"{{testMerchantEmail}}\",\"contrasena\":\"Prueba1234\",\"rol_nombre\":\"COMERCIANTE\"}" },
+            "url": "{{baseUrl}}/api/auth/registro"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('registro 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('registro usa sobre y entrega tokens', () => { pm.expect(json.success).to.eql(true); pm.expect(json.data.accessToken).to.be.a('string'); });",
+            "pm.environment.set('registeredMerchantToken', json.data.accessToken);"
+          ] } }]
+        },
+        {
+          "name": "Correo duplicado 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"nombres\":\"Comerciante Newman\",\"apellidos\":\"\",\"correo\":\"{{testMerchantEmail}}\",\"contrasena\":\"Prueba1234\",\"rol\":\"COMERCIANTE\"}" },
+            "url": "{{baseUrl}}/api/auth/registro"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('correo duplicado 409', () => pm.response.to.have.status(409));",
+            "pm.test('error contractual', () => pm.expect(pm.response.json().success).to.eql(false));"
+          ] } }]
+        },
+        {
+          "name": "Login 200",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"correo\":\"consumer@test.com\",\"contrasena\":\"Demo1234\"}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('login 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.environment.set('consumerToken', json.data.accessToken);",
+            "pm.environment.set('consumerRefreshToken', json.data.refreshToken);",
+            "pm.environment.set('usedRefreshToken', json.data.refreshToken);"
+          ] } }]
+        },
+        {
+          "name": "Login incorrecto 401",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"correo\":\"consumer@test.com\",\"contrasena\":\"Incorrecta123\"}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('login incorrecto 401', () => pm.response.to.have.status(401));"] } }]
+        },
+        {
+          "name": "Sin token 401",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/reservas/mias" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('sin token 401', () => pm.response.to.have.status(401));"] } }]
+        },
+        {
+          "name": "Token inválido 401",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer token-invalido" }], "url": "{{baseUrl}}/api/reservas/mias" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('token inválido 401', () => pm.response.to.have.status(401));"] } }]
+        },
+        {
+          "name": "Refresh 200",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{consumerRefreshToken}}\"}" },
+            "url": "{{baseUrl}}/api/auth/refresh"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('refresh 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.environment.set('consumerToken', json.data.accessToken);",
+            "pm.environment.set('consumerRefreshToken', json.data.refreshToken);"
+          ] } }]
+        },
+        {
+          "name": "Refresh reutilizado 401",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{usedRefreshToken}}\"}" },
+            "url": "{{baseUrl}}/api/auth/refresh"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('refresh reutilizado 401', () => pm.response.to.have.status(401));"] } }]
+        },
+        {
+          "name": "Login comerciante",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"correo\":\"comercio@test.com\",\"contrasena\":\"Demo1234\"}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('login comerciante 200', () => pm.response.to.have.status(200));",
+            "pm.environment.set('merchantToken', pm.response.json().data.accessToken);"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Preparación catálogo",
+      "item": [
+        {
+          "name": "Comercio propio",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }], "url": "{{baseUrl}}/api/comercios/mios" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('comercio propio 200', () => pm.response.to.have.status(200));",
+            "const comercio = pm.response.json().data[0];",
+            "pm.environment.set('comercioId', comercio.comercio_id);",
+            "pm.environment.set('sucursalId', comercio.sucursales[0].sucursal_id);"
+          ] } }]
+        },
+        {
+          "name": "Productos propios",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }], "url": "{{baseUrl}}/api/productos/mios" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('productos propios 200', () => pm.response.to.have.status(200));",
+            "pm.environment.set('productoId', pm.response.json().data[0].producto_id);"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Ofertas",
+      "item": [
+        {
+          "name": "Crear oferta 201",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"producto_id\":\"{{productoId}}\",\"sucursal_id\":\"{{sucursalId}}\",\"titulo_publico\":\"[NEWMAN] Oferta integral\",\"precio_original\":10,\"precio_oferta\":5,\"stock_inicial\":10,\"stock_disponible\":10,\"fecha_vencimiento\":\"{{fechaVencimiento}}\",\"inicio_retiro\":\"{{inicioRetiro}}\",\"fin_retiro\":\"{{finRetiro}}\"}" },
+            "url": "{{baseUrl}}/api/ofertas"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('crear oferta 201', () => pm.response.to.have.status(201));",
+            "pm.environment.set('ofertaId', pm.response.json().data.oferta_id);"
+          ] } }]
+        },
+        {
+          "name": "Precio como texto 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"producto_id\":\"{{productoId}}\",\"sucursal_id\":\"{{sucursalId}}\",\"titulo_publico\":\"Precio texto\",\"precio_original\":\"10\",\"precio_oferta\":5,\"stock_inicial\":10,\"stock_disponible\":10,\"fecha_vencimiento\":\"{{fechaVencimiento}}\",\"inicio_retiro\":\"{{inicioRetiro}}\",\"fin_retiro\":\"{{finRetiro}}\"}" },
+            "url": "{{baseUrl}}/api/ofertas"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('precio como texto 400', () => pm.response.to.have.status(400));"] } }]
+        },
+        {
+          "name": "Precio oferta mayor o igual 422",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"producto_id\":\"{{productoId}}\",\"sucursal_id\":\"{{sucursalId}}\",\"titulo_publico\":\"Precio inválido\",\"precio_original\":10,\"precio_oferta\":10,\"stock_inicial\":10,\"stock_disponible\":10,\"fecha_vencimiento\":\"{{fechaVencimiento}}\",\"inicio_retiro\":\"{{inicioRetiro}}\",\"fin_retiro\":\"{{finRetiro}}\"}" },
+            "url": "{{baseUrl}}/api/ofertas"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('precio_oferta >= original 422', () => pm.response.to.have.status(422));"] } }]
+        },
+        {
+          "name": "Consumidor crea oferta 403",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{consumerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"producto_id\":\"{{productoId}}\",\"sucursal_id\":\"{{sucursalId}}\",\"titulo_publico\":\"No autorizada\",\"precio_original\":10,\"precio_oferta\":5,\"stock_inicial\":10,\"stock_disponible\":10,\"fecha_vencimiento\":\"{{fechaVencimiento}}\",\"inicio_retiro\":\"{{inicioRetiro}}\",\"fin_retiro\":\"{{finRetiro}}\"}" },
+            "url": "{{baseUrl}}/api/ofertas"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('consumidor crea oferta 403', () => pm.response.to.have.status(403));"] } }]
+        },
+        {
+          "name": "Comerciante edita oferta ajena 403",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{registeredMerchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"titulo_publico\":\"Intento ajeno\"}" },
+            "url": "{{baseUrl}}/api/ofertas/{{ofertaId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('comerciante edita oferta ajena 403', () => pm.response.to.have.status(403));"] } }]
+        },
+        {
+          "name": "Oferta inexistente 404",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/ofertas/ffffffff-ffff-4fff-afff-ffffffffffff" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('oferta inexistente 404', () => pm.response.to.have.status(404));"] } }]
+        },
+        {
+          "name": "Paginación página 2 límite 10",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/ofertas?pagina=2&limite=10" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('paginación 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "pm.test('10 ítems y meta.total', () => { pm.expect(json.data).to.have.lengthOf(10); pm.expect(json.meta.total).to.be.a('number'); pm.expect(json.meta.pagina).to.eql(2); });"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Reserva, pago y retiro",
+      "item": [
+        {
+          "name": "Crear reserva",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{consumerToken}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
+            "body": { "mode": "raw", "raw": "{\"sucursal_id\":\"{{sucursalId}}\",\"items\":[{\"oferta_id\":\"{{ofertaId}}\",\"cantidad\":1}]}" },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('reserva creada 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('reserva pendiente de pago', () => pm.expect(json.data.estado_reserva).to.eql('PENDIENTE_PAGO'));",
+            "pm.environment.set('reservaId', json.data.reserva_id);",
+            "pm.environment.set('codigoRetiro', json.data.codigo_retiro);"
+          ] } }]
+        },
+        {
+          "name": "PUT oferta con reservas 409",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"titulo_publico\":\"No debe editarse\"}" },
+            "url": "{{baseUrl}}/api/ofertas/{{ofertaId}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('PUT oferta con reservas 409', () => pm.response.to.have.status(409));"] } }]
+        },
+        {
+          "name": "Reserva mayor al stock 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{consumerToken}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
+            "body": { "mode": "raw", "raw": "{\"sucursal_id\":\"{{sucursalId}}\",\"items\":[{\"oferta_id\":\"{{ofertaId}}\",\"cantidad\":999}]}" },
+            "url": "{{baseUrl}}/api/reservas"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('reserva con más cantidad que stock 409', () => pm.response.to.have.status(409));"] } }]
+        },
+        {
+          "name": "Pago rechazado",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{consumerToken}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
+            "body": { "mode": "raw", "raw": "{\"reserva_id\":\"{{reservaId}}\",\"metodo_pago\":\"TARJETA\",\"simular_rechazo\":true}" },
+            "url": "{{baseUrl}}/api/pagos"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('pago rechazado 422', () => pm.response.to.have.status(422));",
+            "pm.test('código PAYMENT_REJECTED', () => pm.expect(pm.response.json().error.code).to.eql('PAYMENT_REJECTED'));"
+          ] } }]
+        },
+        {
+          "name": "Pago simulado 201",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{consumerToken}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
+            "body": { "mode": "raw", "raw": "{\"reserva_id\":\"{{reservaId}}\",\"metodo_pago\":\"BILLETERA\"}" },
+            "url": "{{baseUrl}}/api/pagos"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('pago simulado 201', () => pm.response.to.have.status(201));",
+            "pm.test('reserva lista para retiro', () => pm.expect(pm.response.json().data.reserva.estado_reserva).to.eql('LISTA_RETIRO'));"
+          ] } }]
+        },
+        {
+          "name": "Validar retiro 201",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"codigo_retiro\":\"{{codigoRetiro}}\",\"metodo_validacion\":\"QR\",\"observacion\":\"Validado por Newman\"}" },
+            "url": "{{baseUrl}}/api/retiros/validar"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('validar retiro 201', () => pm.response.to.have.status(201));",
+            "pm.test('reserva retirada', () => pm.expect(pm.response.json().data.reserva.estado_reserva).to.eql('RETIRADA'));"
+          ] } }]
+        },
+        {
+          "name": "Retiro repetido 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{merchantToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"codigo_retiro\":\"{{codigoRetiro}}\",\"metodo_validacion\":\"CODIGO_MANUAL\"}" },
+            "url": "{{baseUrl}}/api/retiros/validar"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('retiro repetido 409', () => pm.response.to.have.status(409));"] } }]
+        }
+      ]
+    }
+  ]
+}

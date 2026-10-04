@@ -4,7 +4,8 @@ require("dotenv").config();
 const prisma = new PrismaClient();
 
 async function main() {
-  const producto = await prisma.pRODUCTO.findFirst({
+  const producto = await prisma.pRODUCTO.findUnique({
+    where: { producto_id: "00000000-0000-0000-0000-000000000001" },
     include: { comercio: { include: { sucursales: true } } },
   });
 
@@ -13,9 +14,24 @@ async function main() {
   }
 
   const sucursal = producto.comercio.sucursales[0];
-  await prisma.oFERTA_ALIMENTO.deleteMany({
+  const ofertasAnteriores = await prisma.oFERTA_ALIMENTO.findMany({
     where: { titulo_publico: { startsWith: "[CARGA]" } },
+    select: { oferta_id: true },
   });
+  const idsOfertas = ofertasAnteriores.map((oferta) => oferta.oferta_id);
+  const detallesAnteriores = await prisma.dETALLE_RESERVA.findMany({
+    where: { oferta_id: { in: idsOfertas } },
+    select: { reserva_id: true },
+  });
+  const idsReservas = [...new Set(detallesAnteriores.map((detalle) => detalle.reserva_id))];
+
+  await prisma.$transaction([
+    prisma.rETIRO.deleteMany({ where: { reserva_id: { in: idsReservas } } }),
+    prisma.pAGO.deleteMany({ where: { reserva_id: { in: idsReservas } } }),
+    prisma.dETALLE_RESERVA.deleteMany({ where: { reserva_id: { in: idsReservas } } }),
+    prisma.rESERVA.deleteMany({ where: { reserva_id: { in: idsReservas } } }),
+    prisma.oFERTA_ALIMENTO.deleteMany({ where: { oferta_id: { in: idsOfertas } } }),
+  ]);
 
   const ahora = new Date();
   const estados = ["DISPONIBLE", "DISPONIBLE", "DISPONIBLE", "AGOTADA", "PAUSADA", "EXPIRADA"];
