@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../lib/prisma");
 
 function idempotency() {
   return (req, res, next) => {
@@ -13,7 +12,7 @@ function idempotency() {
     const endpoint = req.originalUrl || req.baseUrl + (req.route ? req.route.path : "");
     const usuarioId = req.usuario.usuario_id;
 
-    prisma.iDEMPOTENCY_RECORD
+    prisma.idempotencyRecord
       .findUnique({
         where: {
           idempotency_key_endpoint_usuario_id: {
@@ -31,7 +30,7 @@ function idempotency() {
 
         const originalJson = res.json.bind(res);
         res.json = (body) => {
-          prisma.iDEMPOTENCY_RECORD
+          prisma.idempotencyRecord
             .create({
               data: {
                 idempotency_key: key,

@@ -1,21 +1,16 @@
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../lib/prisma");
 const { successEnvelope, errorEnvelope } = require("../utils/envelope");
 
-const prisma = new PrismaClient();
-
 function generarCodigoRetiro() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let codigo = "";
-  for (let i = 0; i < 8; i++) {
-    codigo += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return codigo;
+  const caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 8 }, () => caracteres[Math.floor(Math.random() * caracteres.length)]).join("");
 }
 
 const reservaSelect = {
   reserva_id: true,
   usuario_id: true,
   codigo_retiro: true,
+  subtotal: true,
   total_pagar: true,
   estado_reserva: true,
   fecha_reserva: true,
@@ -24,6 +19,7 @@ const reservaSelect = {
     select: {
       cantidad: true,
       precio_unitario: true,
+      subtotal_linea: true,
       oferta: {
         select: {
           oferta_id: true,
@@ -44,124 +40,133 @@ const reservaSelect = {
   },
 };
 
-function mapReserva(r) {
-  const detalle = r.detalles?.[0];
-  const estadoMap = {
-    PENDIENTE_PAGO: 'PENDIENTE',
-    LISTA_RETIRO: 'CONFIRMADA',
-    RETIRADA: 'RETIRADA',
-    CANCELADA: 'CANCELADA',
-    EXPIRADA: 'VENCIDA',
+function mapReserva(reserva) {
+  const primerDetalle = reserva.detalles?.[0];
+  const comercio = {
+    id: reserva.sucursal.comercio.comercio_id,
+    nombre: reserva.sucursal.comercio.nombre_comercial,
+    direccion: reserva.sucursal.direccion,
   };
-  return {
-    id: r.reserva_id,
-    usuarioId: r.usuario_id,
-    ofertaId: detalle?.oferta?.oferta_id ?? "",
-    cantidad: detalle?.cantidad ?? 0,
-    codigoRetiro: r.codigo_retiro,
-    estado: estadoMap[r.estado_reserva] ?? r.estado_reserva,
-    createdAt: r.fecha_reserva,
+  const mapDetalle = (detalle) => ({
+    oferta_id: detalle.oferta.oferta_id,
+    cantidad: detalle.cantidad,
+    precio_unitario: Number(detalle.precio_unitario),
+    subtotal_linea: Number(detalle.subtotal_linea),
     oferta: {
-      id: detalle?.oferta?.oferta_id ?? "",
-      titulo: detalle?.oferta?.titulo_publico ?? "",
-      precioOferta: Number(detalle?.oferta?.precio_oferta ?? 0),
-      imagenUrl: detalle?.oferta?.producto?.imagen_url,
-      comercio: {
-        id: r.sucursal.comercio.comercio_id,
-        nombre: r.sucursal.comercio.nombre_comercial,
-        direccion: r.sucursal.direccion,
-      },
+      id: detalle.oferta.oferta_id,
+      titulo: detalle.oferta.titulo_publico,
+      precioOferta: Number(detalle.oferta.precio_oferta),
+      imagenUrl: detalle.oferta.producto.imagen_url || undefined,
+      comercio,
     },
+  });
+
+  return {
+    id: reserva.reserva_id,
+    reserva_id: reserva.reserva_id,
+    usuarioId: reserva.usuario_id,
+    sucursal_id: reserva.sucursal.sucursal_id,
+    ofertaId: primerDetalle?.oferta.oferta_id || "",
+    cantidad: primerDetalle?.cantidad || 0,
+    codigoRetiro: reserva.codigo_retiro,
+    codigo_retiro: reserva.codigo_retiro,
+    subtotal: Number(reserva.subtotal),
+    total_pagar: Number(reserva.total_pagar),
+    estado: reserva.estado_reserva,
+    estado_reserva: reserva.estado_reserva,
+    fecha_limite_retiro: reserva.fecha_limite_retiro,
+    createdAt: reserva.fecha_reserva,
+    items: reserva.detalles.map(mapDetalle),
+    oferta: primerDetalle ? mapDetalle(primerDetalle).oferta : null,
   };
 }
 
 async function crearReserva(req, res, next) {
   try {
-    const { oferta_id, cantidad, base_updated_at } = req.body;
+    const { sucursal_id: sucursalId, items } = req.body;
+    const ids = items.map((item) => item.oferta_id);
+    const [sucursal, ofertas] = await Promise.all([
+      prisma.sUCURSAL.findUnique({ where: { sucursal_id: sucursalId }, select: { sucursal_id: true, activo: true } }),
+      prisma.oFERTA_ALIMENTO.findMany({
+        where: { oferta_id: { in: ids } },
+        select: {
+          oferta_id: true,
+          sucursal_id: true,
+          precio_oferta: true,
+          stock_disponible: true,
+          estado_oferta: true,
+          fin_retiro: true,
+        },
+      }),
+    ]);
 
-    const oferta = await prisma.oFERTA_ALIMENTO.findUnique({
-      where: { oferta_id },
-      include: { sucursal: true },
-    });
-
-    if (!oferta) {
-      return res.status(404).json(errorEnvelope("NOT_FOUND", "Oferta no encontrada"));
+    if (!sucursal || !sucursal.activo) return res.status(404).json(errorEnvelope("BRANCH_NOT_FOUND", "Sucursal no encontrada o inactiva"));
+    if (ofertas.length !== ids.length) return res.status(404).json(errorEnvelope("OFFER_NOT_FOUND", "Una o más ofertas no existen"));
+    if (ofertas.some((oferta) => oferta.sucursal_id !== sucursalId)) {
+      return res.status(409).json(errorEnvelope("BRANCH_MISMATCH", "Todas las ofertas deben pertenecer a la sucursal indicada"));
     }
 
-    // Detección de conflicto: el cliente generó la operación con datos desactualizados
-    if (base_updated_at && new Date(base_updated_at) < oferta.updated_at) {
-      return res.status(409).json(
-        errorEnvelope("CONFLICTO_SINCRONIZACION", "La oferta fue modificada mientras estabas offline", {
-          recurso: {
-            oferta_id: oferta.oferta_id,
-            stock_disponible: oferta.stock_disponible,
-            estado_oferta: oferta.estado_oferta,
-            updated_at: oferta.updated_at.toISOString(),
-          },
-        })
-      );
+    const ahora = new Date();
+    const ofertaPorId = new Map(ofertas.map((oferta) => [oferta.oferta_id, oferta]));
+    for (const item of items) {
+      const oferta = ofertaPorId.get(item.oferta_id);
+      if (oferta.estado_oferta !== "DISPONIBLE" || oferta.fin_retiro <= ahora || oferta.stock_disponible < item.cantidad) {
+        return res.status(409).json(errorEnvelope("STOCK_INSUFICIENTE", "La oferta no está disponible o no tiene stock suficiente", { oferta_id: item.oferta_id }));
+      }
     }
 
-    if (oferta.estado_oferta !== "DISPONIBLE" || oferta.stock_disponible < cantidad) {
-      return res.status(400).json(
-        errorEnvelope("BAD_REQUEST", "La oferta no está disponible o no hay suficiente stock"),
-      );
-    }
-
-    const codigo = generarCodigoRetiro();
-    const fechaLimite = new Date(oferta.fin_retiro);
-    const total = Number(oferta.precio_oferta) * cantidad;
+    const total = items.reduce(
+      (acumulado, item) => acumulado + Number(ofertaPorId.get(item.oferta_id).precio_oferta) * item.cantidad,
+      0
+    );
+    const fechaLimite = new Date(Math.min(...ofertas.map((oferta) => oferta.fin_retiro.getTime())));
 
     const reserva = await prisma.$transaction(async (tx) => {
-      // Re-leer oferta dentro de la transacción para valor actual
-      const ofertaActual = await tx.oFERTA_ALIMENTO.findUnique({
-        where: { oferta_id },
-      });
-
-      if (!ofertaActual || ofertaActual.stock_disponible < cantidad) {
-        throw new Error("STOCK_INSUFICIENTE");
+      for (const item of items) {
+        const actualizada = await tx.oFERTA_ALIMENTO.updateMany({
+          where: {
+            oferta_id: item.oferta_id,
+            estado_oferta: "DISPONIBLE",
+            stock_disponible: { gte: item.cantidad },
+            fin_retiro: { gt: ahora },
+          },
+          data: { stock_disponible: { decrement: item.cantidad } },
+        });
+        if (actualizada.count !== 1) {
+          const error = new Error("STOCK_INSUFICIENTE");
+          error.ofertaId = item.oferta_id;
+          throw error;
+        }
       }
 
-      const nuevaReserva = await tx.rESERVA.create({
+      return tx.rESERVA.create({
         data: {
           usuario_id: req.usuario.usuario_id,
-          sucursal_id: oferta.sucursal_id,
-          codigo_retiro: codigo,
-          subtotal: Number(oferta.precio_oferta) * cantidad,
+          sucursal_id: sucursalId,
+          codigo_retiro: generarCodigoRetiro(),
+          subtotal: total,
           total_pagar: total,
-          estado_reserva: "LISTA_RETIRO",
+          estado_reserva: "PENDIENTE_PAGO",
           fecha_limite_retiro: fechaLimite,
           detalles: {
-            create: {
-              oferta_id,
-              cantidad,
-              precio_unitario: Number(oferta.precio_oferta),
-              subtotal_linea: total,
-            },
+            create: items.map((item) => ({
+              oferta_id: item.oferta_id,
+              cantidad: item.cantidad,
+              precio_unitario: Number(ofertaPorId.get(item.oferta_id).precio_oferta),
+              subtotal_linea: Number(ofertaPorId.get(item.oferta_id).precio_oferta) * item.cantidad,
+            })),
           },
         },
         select: reservaSelect,
       });
-
-      await tx.oFERTA_ALIMENTO.update({
-        where: { oferta_id },
-        data: { stock_disponible: { decrement: cantidad } },
-      });
-
-      return nuevaReserva;
     });
 
     res.status(201).json(successEnvelope(mapReserva(reserva)));
-  } catch (err) {
-    if (err.message === "STOCK_INSUFICIENTE") {
-      return res.status(409).json(
-        errorEnvelope("STOCK_INSUFICIENTE", "Ya no hay suficiente stock disponible al sincronizar la reserva", {
-          oferta_id,
-          cantidad_solicitada: cantidad,
-        })
-      );
+  } catch (error) {
+    if (error.message === "STOCK_INSUFICIENTE") {
+      return res.status(409).json(errorEnvelope("STOCK_INSUFICIENTE", "El stock cambió durante la reserva", { oferta_id: error.ofertaId }));
     }
-    next(err);
+    next(error);
   }
 }
 
@@ -172,51 +177,53 @@ async function listarMisReservas(req, res, next) {
       select: reservaSelect,
       orderBy: { fecha_reserva: "desc" },
     });
-
     res.json(successEnvelope(reservas.map(mapReserva)));
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 }
 
 async function cancelarReserva(req, res, next) {
   try {
-    const reserva = await prisma.rESERVA.findUnique({
-      where: { reserva_id: req.params.id },
-      include: { detalles: true },
-    });
-
-    if (!reserva) {
-      return res.status(404).json(errorEnvelope("NOT_FOUND", "Reserva no encontrada"));
-    }
-
-    if (reserva.usuario_id !== req.usuario.usuario_id) {
-      return res.status(403).json(errorEnvelope("FORBIDDEN", "No eres el dueño de esta reserva"));
-    }
-
-    if (!["PENDIENTE_PAGO", "LISTA_RETIRO"].includes(reserva.estado_reserva)) {
-      return res.status(400).json(errorEnvelope("BAD_REQUEST", "Esta reserva no se puede cancelar"));
-    }
-
-    const updated = await prisma.rESERVA.update({
-      where: { reserva_id: req.params.id },
-      data: {
-        estado_reserva: "CANCELADA",
-        fecha_cancelacion: new Date(),
-      },
-      select: reservaSelect,
-    });
-
-    for (const detalle of reserva.detalles) {
-      await prisma.oFERTA_ALIMENTO.update({
-        where: { oferta_id: detalle.oferta_id },
-        data: { stock_disponible: { increment: detalle.cantidad } },
+    const resultado = await prisma.$transaction(async (tx) => {
+      const reserva = await tx.rESERVA.findUnique({
+        where: { reserva_id: req.params.id },
+        include: { detalles: true },
       });
-    }
+      if (!reserva) return { error: [404, "NOT_FOUND", "Reserva no encontrada"] };
+      if (reserva.usuario_id !== req.usuario.usuario_id) return { error: [403, "FORBIDDEN", "No eres el dueño de esta reserva"] };
+      if (!["PENDIENTE_PAGO", "PAGADA", "LISTA_RETIRO"].includes(reserva.estado_reserva)) {
+        return { error: [409, "INVALID_RESERVATION_STATE", "Esta reserva no se puede cancelar"] };
+      }
 
-    res.json(successEnvelope(mapReserva(updated)));
-  } catch (err) {
-    next(err);
+      await Promise.all([
+        tx.pAGO.updateMany({
+          where: { reserva_id: reserva.reserva_id, estado_pago: "APROBADO" },
+          data: { estado_pago: "REVERSADO" },
+        }),
+        ...reserva.detalles.map((detalle) =>
+          tx.oFERTA_ALIMENTO.update({
+            where: { oferta_id: detalle.oferta_id },
+            data: { stock_disponible: { increment: detalle.cantidad } },
+          })
+        ),
+      ]);
+
+      const actualizada = await tx.rESERVA.update({
+        where: { reserva_id: reserva.reserva_id },
+        data: { estado_reserva: "CANCELADA", fecha_cancelacion: new Date() },
+        select: reservaSelect,
+      });
+      return { reserva: actualizada };
+    });
+
+    if (resultado.error) {
+      const [status, code, message] = resultado.error;
+      return res.status(status).json(errorEnvelope(code, message));
+    }
+    res.json(successEnvelope(mapReserva(resultado.reserva)));
+  } catch (error) {
+    next(error);
   }
 }
 
