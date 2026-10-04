@@ -8,10 +8,15 @@
     "start": "node src/app.js",
     "postinstall": "npx prisma generate",
     "db:push": "npx prisma db push",
+    "db:migrate": "prisma migrate deploy",
     "db:seed": "node prisma/seed.cjs",
     "db:seed:carga": "node prisma/seed-carga.cjs",
     "db:studio": "npx prisma studio",
-    "db:generate": "npx prisma generate"
+    "db:generate": "npx prisma generate",
+    "start:prod": "prisma migrate deploy && node src/app.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "keywords": [],
   "author": "",

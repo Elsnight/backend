@@ -94,6 +94,7 @@ model PRODUCTO {
   categoria             CATEGORIA        @relation(fields: [categoria_id], references: [categoria_id])
   ofertas               OFERTA_ALIMENTO[]
 
+  @@index([comercio_id])
   @@map("PRODUCTO")
 }
 
@@ -140,6 +141,8 @@ model RESERVA {
   pago                PAGO[]
   retiro              RETIRO[]
 
+  @@index([usuario_id])
+  @@index([sucursal_id])
   @@map("RESERVA")
 }
 
@@ -154,6 +157,7 @@ model DETALLE_RESERVA {
   oferta             OFERTA_ALIMENTO  @relation(fields: [oferta_id], references: [oferta_id])
 
   @@unique([reserva_id, oferta_id])
+  @@index([oferta_id])
   @@map("DETALLE_RESERVA")
 }
 
@@ -169,6 +173,7 @@ model PAGO {
   fecha_proceso      DateTime @default(now()) @db.Timestamptz
   reserva            RESERVA  @relation(fields: [reserva_id], references: [reserva_id])
 
+  @@index([reserva_id])
   @@map("PAGO")
 }
 
