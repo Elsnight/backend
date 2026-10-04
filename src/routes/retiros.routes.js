@@ -1,35 +1,43 @@
 const router = require("express").Router();
-const retirosController = require("../controllers/retiros.controller");
+const controller = require("../controllers/retiros.controller");
 const { authenticate, authorize } = require("../middlewares/auth.middleware");
+const { validate } = require("../middlewares/validate.middleware");
+const { validarRetiroSchema } = require("../schemas/retiros.schema");
 
 /**
  * @openapi
  * /api/retiros/validar:
  *   post:
  *     tags: [Retiros]
- *     summary: Validar el retiro de una reserva (COMERCIANTE)
- *     security:
- *       - bearerAuth: []
+ *     summary: Validar y registrar el retiro pagado de una sucursal propia
+ *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             additionalProperties: false
+ *             required: [codigo_retiro, metodo_validacion]
  *             properties:
- *               codigo_retiro: { type: string }
- *               metodo_validacion:
- *                 type: string
- *                 enum: [QR, CODIGO_MANUAL]
- *               observacion: { type: string, nullable: true }
+ *               codigo_retiro: { type: string, maxLength: 12 }
+ *               metodo_validacion: { type: string, enum: [QR, CODIGO_MANUAL] }
+ *               observacion: { type: string, maxLength: 300 }
  *     responses:
- *       200:
- *         description: Retiro validado exitosamente
- *       400:
- *         description: Código inválido o reserva no válida
- *       403:
- *         description: No autorizado
+ *       201: { description: Retiro creado y reserva marcada RETIRADA }
+ *       400: { description: Body inválido }
+ *       401: { description: Token ausente o inválido }
+ *       403: { description: Sucursal ajena o rol incorrecto }
+ *       404: { description: Código no encontrado }
+ *       409: { description: Estado no válido o ausencia de pago aprobado }
+ *       422: { description: RETIRO_VENCIDO }
  */
-router.post("/validar", authenticate, authorize("COMERCIANTE"), retirosController.validarRetiro);
+router.post(
+  "/validar",
+  authenticate,
+  authorize("COMERCIANTE"),
+  validate(validarRetiroSchema),
+  controller.validarRetiro
+);
 
 module.exports = router;
