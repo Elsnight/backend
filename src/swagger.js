@@ -1,7 +1,14 @@
 const swaggerJsdoc = require("swagger-jsdoc");
 
-const baseUrl =
-  process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+const railwayUrl = railwayDomain
+  ? `${/^https?:\/\//.test(railwayDomain) ? "" : "https://"}${railwayDomain}`
+  : null;
+const publicUrl =
+  process.env.PUBLIC_URL ||
+  process.env.API_URL ||
+  railwayUrl ||
+  `http://localhost:${process.env.PORT || 3000}`;
 
 const options = {
   definition: {
@@ -14,8 +21,12 @@ const options = {
     },
     servers: [
       {
-        url: baseUrl,
-        description: "Servidor de la API",
+        url: "/",
+        description: "Mismo origen que Swagger UI",
+      },
+      {
+        url: publicUrl,
+        description: "URL pública o servidor local",
       },
     ],
     components: {
